@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply h-full w-full;
+    @apply flex items-center justify-center;
+    @apply bg-black;
+  }
+
+  .root {
+    @apply h-full w-full max-w-[1440px];
+    aspect-ratio: 1.392;
+  }
+
+  canvas {
+    @apply h-full w-full;
+  }
+}
