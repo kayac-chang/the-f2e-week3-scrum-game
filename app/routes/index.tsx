@@ -3,8 +3,13 @@ import { json } from "@remix-run/server-runtime";
 import { useLoaderData } from "@remix-run/react";
 import useCallbackRef from "~/hooks/useCallbackRef";
 import { createStage } from "~/systems/render";
-import type { ResolverManifest } from "pixi.js";
 import FontFaceObserver from "fontfaceobserver";
+import store from "~/systems/store";
+import type { ResolverManifest } from "pixi.js";
+import type { State } from "~/systems/store";
+import type { Entity } from "~/systems/render";
+
+import * as Start from "~/scenes/Start";
 
 export function loader() {
   return json({
@@ -108,17 +113,38 @@ export default function Index() {
         ref.appendChild(app.view as HTMLCanvasElement);
         return app;
       })
-      .then((app) =>
-        import("~/scenes/Start")
-          //
-          .then(async (module) => {
-            const assets = await module.load();
+      .then((app) => {
+        interface Scene {
+          bundle: string;
+          entities: Entity;
+        }
+        const routes: Record<string, Scene> = {
+          Start,
+        };
+        const loaded = new Map();
 
-            const traverse = createStage(app, assets);
+        const init = async ({ current }: State) => {
+          if (!(current in routes)) return;
 
-            app.stage.addChild(traverse(module.entities));
-          })
-      );
+          const module = routes[current];
+          app.stage.removeChildren();
+
+          if (!loaded.has(module.bundle)) {
+            const assets = await Assets.loadBundle(module.bundle);
+            loaded.set(module.bundle, assets);
+          }
+
+          const assets = loaded.get(module.bundle);
+          const traverse = createStage(app, assets);
+
+          app.stage.addChild(traverse(module.entities));
+        };
+
+        store.on("router/change", init);
+      })
+      .then(() => {
+        store.dispatch("router/nav", "Start");
+      });
 
     // resize
     const resize = () => {

@@ -1,4 +1,9 @@
-import type { Application, DisplayObject, ITextStyle } from "pixi.js";
+import type {
+  Application,
+  DisplayObject,
+  FederatedPointerEvent,
+  ITextStyle,
+} from "pixi.js";
 import { Text } from "pixi.js";
 import { Sprite, Container, Graphics } from "pixi.js";
 import is from "@sindresorhus/is";
@@ -14,9 +19,14 @@ export interface Rect<T> {
   height: T;
 }
 
-interface BaseEntity {
+interface Interaction {
+  onClick?: (event: FederatedPointerEvent) => void;
+}
+
+interface BaseEntity extends Interaction {
   position?: Vec2<string | number>;
   anchor?: Vec2<number>;
+  visible?: boolean;
 }
 
 export interface SpriteEntity extends BaseEntity {
@@ -45,9 +55,8 @@ export interface TextEntity extends BaseEntity {
   style?: Partial<ITextStyle>;
 }
 
-export interface ContainerEntity {
+export interface ContainerEntity extends Omit<BaseEntity, "anchor"> {
   type: "container";
-  position?: Vec2<string | number>;
   children: Entity[];
 }
 
@@ -65,6 +74,15 @@ export function createStage(app: Application, assets: any) {
       const position = processVec2(entity.position, app.screen);
       obj.position.set(position.x, position.y);
 
+      if (entity.onClick) {
+        obj.interactive = true;
+        obj.on("click", entity.onClick);
+      }
+
+      if (entity.visible === false) {
+        obj.visible = false;
+      }
+
       obj.addChild(...entity.children.map(traverse));
 
       return obj;
@@ -72,6 +90,10 @@ export function createStage(app: Application, assets: any) {
 
     if (entity.type === "sprite") {
       const obj = new Sprite(assets[entity.texture]);
+
+      if (entity.visible === false) {
+        obj.visible = false;
+      }
 
       const position = processVec2(entity.position, app.screen);
       obj.position.set(position.x, position.y);
@@ -84,6 +106,10 @@ export function createStage(app: Application, assets: any) {
 
     if (entity.type === "graphics") {
       const obj = new Graphics();
+
+      if (entity.visible === false) {
+        obj.visible = false;
+      }
 
       obj.beginFill(entity.fill.alpha, entity.fill.alpha);
 
@@ -109,6 +135,11 @@ export function createStage(app: Application, assets: any) {
 
     if (entity.type === "text") {
       const obj = new Text(entity.text, entity.style);
+
+      if (entity.visible === false) {
+        obj.visible = false;
+      }
+
       const position = processVec2(entity.position, app.screen);
       obj.position.set(position.x, position.y);
 

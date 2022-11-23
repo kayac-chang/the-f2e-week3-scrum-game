@@ -1,9 +1,6 @@
-import { Assets } from "pixi.js";
 import type { Entity } from "~/systems/render";
 
-export function load() {
-  return Assets.loadBundle("game-screen");
-}
+export const bundle = "game-screen";
 
 export const entities: Entity = {
   type: "container",
@@ -185,6 +182,7 @@ export const entities: Entity = {
         {
           type: "container",
           position: { x: 0, y: 170 },
+          onClick: () => {},
           children: [
             {
               type: "sprite",
