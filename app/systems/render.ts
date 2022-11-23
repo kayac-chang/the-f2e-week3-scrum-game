@@ -4,10 +4,12 @@ import type {
   FederatedPointerEvent,
   ITextStyle,
 } from "pixi.js";
+import type { Falsy } from "@sindresorhus/is/dist/types";
 import { Text } from "pixi.js";
 import { Sprite, Container, Graphics } from "pixi.js";
 import is from "@sindresorhus/is";
 import { isPercentage, parsePercentage } from "~/utils/percentage";
+import invariant from "tiny-invariant";
 
 export interface Vec2<Value> {
   x: Value;
@@ -19,11 +21,18 @@ export interface Rect<T> {
   height: T;
 }
 
-interface Interaction {
-  onClick?: (event: FederatedPointerEvent) => void;
+interface Added<T> {
+  onAdded?: (element: T, app: Application) => void;
 }
 
-interface BaseEntity extends Interaction {
+interface Interactive {
+  interactive?: boolean;
+  onPointerEnter?: (event: FederatedPointerEvent) => void;
+  onPointerLeave?: (event: FederatedPointerEvent) => void;
+}
+
+interface BaseEntity extends Interactive {
+  name?: string;
   position?: Vec2<string | number>;
   anchor?: Vec2<number>;
   visible?: boolean;
@@ -55,9 +64,11 @@ export interface TextEntity extends BaseEntity {
   style?: Partial<ITextStyle>;
 }
 
-export interface ContainerEntity extends Omit<BaseEntity, "anchor"> {
+export interface ContainerEntity
+  extends Omit<BaseEntity, "anchor">,
+    Added<Container> {
   type: "container";
-  children: Entity[];
+  children: (Entity | Falsy)[];
 }
 
 export type Entity =
@@ -74,18 +85,21 @@ export function createStage(app: Application, assets: any) {
       const position = processVec2(entity.position, app.screen);
       obj.position.set(position.x, position.y);
 
-      if (entity.onClick) {
-        obj.interactive = true;
-        obj.on("click", entity.onClick);
+      if (entity.onAdded) {
+        obj.addEventListener("added", () => entity.onAdded?.(obj, app));
       }
 
-      if (entity.visible === false) {
-        obj.visible = false;
-      }
+      obj.addChild(
+        ...entity.children
+          //
+          .filter(Boolean)
+          .map((entity) => {
+            invariant(entity);
+            return traverse(entity);
+          })
+      );
 
-      obj.addChild(...entity.children.map(traverse));
-
-      return obj;
+      return processBase(obj, entity);
     }
 
     if (entity.type === "sprite") {
@@ -101,7 +115,7 @@ export function createStage(app: Application, assets: any) {
       const anchor = processVec2(entity.anchor, app.screen);
       obj.anchor.set(anchor.x, anchor.y);
 
-      return obj;
+      return processBase(obj, entity);
     }
 
     if (entity.type === "graphics") {
@@ -130,26 +144,43 @@ export function createStage(app: Application, assets: any) {
         obj.drawRoundedRect(x, y, rect.width, rect.height, entity.draw.radii);
       }
 
-      return obj;
+      return processBase(obj, entity);
     }
 
     if (entity.type === "text") {
       const obj = new Text(entity.text, entity.style);
-
-      if (entity.visible === false) {
-        obj.visible = false;
-      }
 
       const position = processVec2(entity.position, app.screen);
       obj.position.set(position.x, position.y);
 
       const anchor = processVec2(entity.anchor, app.screen);
       obj.anchor.set(anchor.x, anchor.y);
-      return obj;
+
+      return processBase(obj, entity);
     }
 
     throw new Error(`not support entity type`);
   };
+}
+
+function processBase(obj: DisplayObject, entity: BaseEntity) {
+  if (entity.visible === false) {
+    obj.visible = false;
+  }
+
+  if (entity.name) {
+    obj.name = entity.name;
+  }
+
+  obj.interactive = Boolean(entity.interactive);
+  if (entity.onPointerEnter) {
+    obj.on("pointerenter", entity.onPointerEnter);
+  }
+  if (entity.onPointerLeave) {
+    obj.on("pointerleave", entity.onPointerLeave);
+  }
+
+  return obj;
 }
 
 function processVec2(

@@ -84,6 +84,12 @@ export function loader() {
             name: "btn_front",
             srcs: require("~/assets/game-screen/btn_front.png"),
           },
+
+          // dialog
+          {
+            name: "dialog_lg",
+            srcs: require("~/assets/game-screen/dialog_lg.png"),
+          },
         ],
       },
     ],
@@ -115,21 +121,22 @@ export default function Index() {
       })
       .then((app) => {
         interface Scene {
-          bundle: string;
+          bundle?: string;
           entities: Entity;
+          create?: (app: Application, assets: any) => void;
         }
         const routes: Record<string, Scene> = {
           Start,
         };
         const loaded = new Map();
 
-        const init = async ({ current }: State) => {
+        async function init({ current }: State) {
           if (!(current in routes)) return;
 
           const module = routes[current];
           app.stage.removeChildren();
 
-          if (!loaded.has(module.bundle)) {
+          if (!loaded.has(module.bundle) && module.bundle) {
             const assets = await Assets.loadBundle(module.bundle);
             loaded.set(module.bundle, assets);
           }
@@ -138,7 +145,11 @@ export default function Index() {
           const traverse = createStage(app, assets);
 
           app.stage.addChild(traverse(module.entities));
-        };
+
+          requestAnimationFrame(() => {
+            module.create?.(app, assets);
+          });
+        }
 
         store.on("router/change", init);
       })
