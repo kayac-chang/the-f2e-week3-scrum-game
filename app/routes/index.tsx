@@ -5,93 +5,32 @@ import useCallbackRef from "~/hooks/useCallbackRef";
 import { createStage } from "~/systems/render";
 import FontFaceObserver from "fontfaceobserver";
 import store from "~/systems/store";
-import type { ResolverManifest } from "pixi.js";
+import type { ResolverManifest, ResolverBundle } from "pixi.js";
 import type { State } from "~/systems/store";
 import type { Entity } from "~/systems/render";
 
 import * as Start from "~/scenes/Start";
+import * as Main from "~/scenes/Main";
 
 export function loader() {
   return json({
     bundles: [
       {
-        name: "game-screen",
+        name: "shared",
         assets: [
-          // background
-          {
-            name: "bg_leafDark_1_l",
-            srcs: require("~/assets/game-screen/bg_leafDark_1_l.png"),
-          },
-          {
-            name: "bg_leafDark_2_b",
-            srcs: require("~/assets/game-screen/bg_leafDark_2_b.png"),
-          },
-          {
-            name: "bg_leafDark_3_r",
-            srcs: require("~/assets/game-screen/bg_leafDark_3_r.png"),
-          },
-          {
-            name: "bg_leafDark_4_t",
-            srcs: require("~/assets/game-screen/bg_leafDark_4_t.png"),
-          },
-          {
-            name: "bg_leafTint_1_lt",
-            srcs: require("~/assets/game-screen/bg_leafTint_1_lt.png"),
-          },
-          {
-            name: "bg_leafTint_2_lb",
-            srcs: require("~/assets/game-screen/bg_leafTint_2_lb.png"),
-          },
-          {
-            name: "bg_leafTint_3_t",
-            srcs: require("~/assets/game-screen/bg_leafTint_3_t.png"),
-          },
-          {
-            name: "bg_leafTint_4_rb",
-            srcs: require("~/assets/game-screen/bg_leafTint_4_rb.png"),
-          },
-
-          // dot
-          {
-            name: "logo_dot_blue",
-            srcs: require("~/assets/game-screen/logo_dot_blue.png"),
-          },
-          {
-            name: "logo_dot_purple",
-            srcs: require("~/assets/game-screen/logo_dot_purple.png"),
-          },
-          {
-            name: "logo_dot_red",
-            srcs: require("~/assets/game-screen/logo_dot_red.png"),
-          },
-          {
-            name: "logo_dot_yellow",
-            srcs: require("~/assets/game-screen/logo_dot_yellow.png"),
-          },
-
-          // logo
-          {
-            name: "logo_hole_txt",
-            srcs: require("~/assets/game-screen/logo_hole_txt.png"),
-          },
-
           // button
           {
             name: "btn_back",
-            srcs: require("~/assets/game-screen/btn_back.png"),
+            srcs: require("~/assets/start/btn_back.png"),
           },
           {
             name: "btn_front",
-            srcs: require("~/assets/game-screen/btn_front.png"),
-          },
-
-          // dialog
-          {
-            name: "dialog_lg",
-            srcs: require("~/assets/game-screen/dialog_lg.png"),
+            srcs: require("~/assets/start/btn_front.png"),
           },
         ],
       },
+      Start.bundle,
+      Main.bundle,
     ],
   } as ResolverManifest);
 }
@@ -108,11 +47,16 @@ export default function Index() {
       .then(() => {
         // load
         Assets.init({ manifest });
-        Assets.backgroundLoadBundle(["game-screen"]);
+        Assets.backgroundLoadBundle([
+          "shared",
+          Start.bundle.name,
+          Main.bundle.name,
+        ]);
 
         const font = new FontFaceObserver("Gen Jyuu Gothic P Regular");
         return font.load();
       })
+      .then(() => Assets.loadBundle("shared"))
       .then(() => {
         // application
         app = new Application({ resizeTo: ref });
@@ -121,12 +65,13 @@ export default function Index() {
       })
       .then((app) => {
         interface Scene {
-          bundle?: string;
+          bundle?: ResolverBundle;
           entities: Entity;
-          create?: (app: Application, assets: any) => void;
+          create?: (app: Application) => void;
         }
         const routes: Record<string, Scene> = {
           Start,
+          Main,
         };
         const loaded = new Map();
 
@@ -137,24 +82,23 @@ export default function Index() {
           app.stage.removeChildren();
 
           if (!loaded.has(module.bundle) && module.bundle) {
-            const assets = await Assets.loadBundle(module.bundle);
+            const assets = await Assets.loadBundle(module.bundle.name);
             loaded.set(module.bundle, assets);
           }
 
-          const assets = loaded.get(module.bundle);
-          const traverse = createStage(app, assets);
+          const traverse = createStage(app);
 
           app.stage.addChild(traverse(module.entities));
 
           requestAnimationFrame(() => {
-            module.create?.(app, assets);
+            module.create?.(app);
           });
         }
 
         store.on("router/change", init);
       })
       .then(() => {
-        store.dispatch("router/nav", "Start");
+        store.dispatch("router/nav", "Main");
       });
 
     // resize

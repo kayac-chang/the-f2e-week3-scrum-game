@@ -1,66 +1,77 @@
 import type { Application, Container } from "pixi.js";
-import type { Entity, Vec2 } from "~/systems/render";
+import type { Entity } from "~/systems/render";
 import gsap from "gsap";
+import DialogText from "~/entities/DialogText";
+import Button from "~/entities/Button";
 
-type ButtonProps = {
-  name?: string;
-  position?: Vec2<string | number>;
-  text: string;
+export const bundle = {
+  name: "start",
+  assets: [
+    // background
+    {
+      name: "bg_leafDark_1_l",
+      srcs: require("~/assets/start/bg_leafDark_1_l.png"),
+    },
+    {
+      name: "bg_leafDark_2_b",
+      srcs: require("~/assets/start/bg_leafDark_2_b.png"),
+    },
+    {
+      name: "bg_leafDark_3_r",
+      srcs: require("~/assets/start/bg_leafDark_3_r.png"),
+    },
+    {
+      name: "bg_leafDark_4_t",
+      srcs: require("~/assets/start/bg_leafDark_4_t.png"),
+    },
+    {
+      name: "bg_leafTint_1_lt",
+      srcs: require("~/assets/start/bg_leafTint_1_lt.png"),
+    },
+    {
+      name: "bg_leafTint_2_lb",
+      srcs: require("~/assets/start/bg_leafTint_2_lb.png"),
+    },
+    {
+      name: "bg_leafTint_3_t",
+      srcs: require("~/assets/start/bg_leafTint_3_t.png"),
+    },
+    {
+      name: "bg_leafTint_4_rb",
+      srcs: require("~/assets/start/bg_leafTint_4_rb.png"),
+    },
+
+    // dot
+    {
+      name: "logo_dot_blue",
+      srcs: require("~/assets/start/logo_dot_blue.png"),
+    },
+    {
+      name: "logo_dot_purple",
+      srcs: require("~/assets/start/logo_dot_purple.png"),
+    },
+    {
+      name: "logo_dot_red",
+      srcs: require("~/assets/start/logo_dot_red.png"),
+    },
+    {
+      name: "logo_dot_yellow",
+      srcs: require("~/assets/start/logo_dot_yellow.png"),
+    },
+
+    // logo
+    {
+      name: "logo_hole_txt",
+      srcs: require("~/assets/start/logo_hole_txt.png"),
+    },
+
+    // dialog
+    {
+      name: "dialog_lg",
+      srcs: require("~/assets/start/dialog_lg.png"),
+    },
+  ],
 };
-function Button(props: ButtonProps): Entity {
-  return {
-    type: "container",
-    name: props.name,
-    position: props.position,
-    interactive: true,
-    onPointerEnter: ({ currentTarget }) => {
-      const enter = currentTarget as Container;
-      const front = enter.getChildByName("btn_front");
-      const text = enter.getChildByName("text");
-
-      gsap.to(front, { y: 4 });
-      gsap.to(text, { y: 4 });
-    },
-    onPointerLeave: ({ currentTarget }) => {
-      const enter = currentTarget as Container;
-      const front = enter.getChildByName("btn_front");
-      const text = enter.getChildByName("text");
-
-      gsap.to(front, { y: 0 });
-      gsap.to(text, { y: 0 });
-    },
-    children: [
-      {
-        type: "sprite",
-        name: "btn_back",
-        texture: "btn_back",
-        position: { x: 0, y: 6 },
-        anchor: { x: 0.5, y: 0.5 },
-      },
-      {
-        type: "sprite",
-        name: "btn_front",
-        texture: "btn_front",
-        anchor: { x: 0.5, y: 0.5 },
-      },
-
-      {
-        type: "text",
-        name: "text",
-        text: props.text,
-        style: {
-          fill: 0xffffff,
-          fontSize: 20,
-          fontWeight: "700",
-          fontFamily: "Gen Jyuu Gothic P Regular",
-        },
-        anchor: { x: 0.5, y: 0.5 },
-      },
-    ],
-  };
-}
-
-export const bundle = "game-screen";
 
 export const entities: Entity = {
   type: "container",
@@ -275,70 +286,40 @@ export const entities: Entity = {
           texture: "dialog_lg",
           anchor: { x: 0.5, y: 0.5 },
         },
-        {
-          type: "text",
+        DialogText({
           text: "（謎之音）",
-          style: {
-            fill: 0x0a0d14,
-            fontSize: 24,
-            fontFamily: "Gen Jyuu Gothic P Regular",
-          },
+          color: "dark",
           position: { x: -380, y: -150 },
           anchor: { x: 0.5, y: 0.5 },
-        },
+        }),
         {
           type: "container",
           position: { x: -360, y: -70 },
           children: [
-            {
-              type: "text",
+            DialogText({
               text: `呦呼 ， 歡迎進入`,
-              style: {
-                fill: 0xffffff,
-                fontSize: 24,
-                fontFamily: "Gen Jyuu Gothic P Regular",
-              },
-            },
-            {
-              type: "text",
+              color: "white",
+            }),
+            DialogText({
               text: `「SCRUM 新手村」`,
-              style: {
-                fill: 0x00ffe0,
-                fontSize: 24,
-                fontFamily: "Gen Jyuu Gothic P Regular",
-              },
+              color: "blue",
               position: { x: 170, y: 0 },
-            },
-            {
-              type: "text",
+            }),
+            DialogText({
               text: `， 在正式加入專案開發之前 ，`,
-              style: {
-                fill: 0xffffff,
-                fontSize: 24,
-                fontFamily: "Gen Jyuu Gothic P Regular",
-              },
+              color: "white",
               position: { x: 360, y: 0 },
-            },
-            {
-              type: "text",
+            }),
+            DialogText({
               text: `需要請你先了解 Scrum 的流程與精神 ！`,
-              style: {
-                fill: 0xffffff,
-                fontSize: 24,
-                fontFamily: "Gen Jyuu Gothic P Regular",
-              },
+              color: "white",
               position: { x: 0, y: 24 * 1.75 },
-            },
-            {
-              type: "text",
+            }),
+            DialogText({
               text: `請接受挑戰任務 ， 成功通過 Scrum 新手村的挑戰任務吧～`,
-              style: {
-                fill: 0xffffff,
-                fontSize: 24,
-                fontFamily: "Gen Jyuu Gothic P Regular",
-              },
+              color: "white",
               position: { x: 0, y: 24 * 1.75 * 3 },
-            },
+            }),
           ],
         },
 

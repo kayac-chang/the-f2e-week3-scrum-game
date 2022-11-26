@@ -2,14 +2,20 @@ import type {
   Application,
   DisplayObject,
   FederatedPointerEvent,
+  ILineStyleOptions,
   ITextStyle,
+  Renderer,
 } from "pixi.js";
+import { Assets } from "pixi.js";
 import type { Falsy } from "@sindresorhus/is/dist/types";
+import type { ColorStop } from "@pixi-essentials/gradients";
+import { RenderTexture } from "pixi.js";
 import { Text } from "pixi.js";
 import { Sprite, Container, Graphics } from "pixi.js";
 import is from "@sindresorhus/is";
 import { isPercentage, parsePercentage } from "~/utils/percentage";
 import invariant from "tiny-invariant";
+import { GradientFactory } from "@pixi-essentials/gradients";
 
 export interface Vec2<Value> {
   x: Value;
@@ -21,17 +27,17 @@ export interface Rect<T> {
   height: T;
 }
 
-interface Added<T> {
+export interface Added<T> {
   onAdded?: (element: T, app: Application) => void;
 }
 
-interface Interactive {
+export interface Interactive {
   interactive?: boolean;
   onPointerEnter?: (event: FederatedPointerEvent) => void;
   onPointerLeave?: (event: FederatedPointerEvent) => void;
 }
 
-interface BaseEntity extends Interactive {
+export interface BaseEntity extends Interactive {
   name?: string;
   position?: Vec2<string | number>;
   anchor?: Vec2<number>;
@@ -41,6 +47,7 @@ interface BaseEntity extends Interactive {
 export interface SpriteEntity extends BaseEntity {
   type: "sprite";
   texture: string;
+  scale?: { x: number; y: number };
 }
 
 type DrawRect = Rect<string | number> & {
@@ -52,10 +59,30 @@ type DrawRoundedRect = Rect<string | number> & {
   radii: number;
 };
 
-export interface GraphicsEntity extends BaseEntity {
+type Fill = { type?: "fill"; color: number; alpha: number };
+type TextureFill = {
+  type: "texture";
+  from: Vec2<number>;
+  to: Vec2<number>;
+  colors: ColorStop[];
+};
+
+interface Arrow {
+  angle: number;
+  radius: number;
+}
+type DrawArrow = {
+  type: "arrow";
+  from: Vec2<number>;
+  to: Vec2<number>;
+  arrow: Arrow;
+};
+
+export interface GraphicsEntity extends BaseEntity, Added<Graphics> {
   type: "graphics";
-  fill: { color: number; alpha: number };
-  draw: DrawRect | DrawRoundedRect;
+  fill?: Fill | TextureFill;
+  line?: ILineStyleOptions;
+  draw?: DrawRect | DrawRoundedRect | DrawArrow;
 }
 
 export interface TextEntity extends BaseEntity {
@@ -77,7 +104,7 @@ export type Entity =
   | GraphicsEntity
   | TextEntity;
 
-export function createStage(app: Application, assets: any) {
+export function createStage(app: Application) {
   return function traverse(entity: Entity): DisplayObject {
     if (entity.type === "container") {
       const obj = new Container();
@@ -89,21 +116,24 @@ export function createStage(app: Application, assets: any) {
         obj.addEventListener("added", () => entity.onAdded?.(obj, app));
       }
 
-      obj.addChild(
-        ...entity.children
-          //
-          .filter(Boolean)
-          .map((entity) => {
-            invariant(entity);
-            return traverse(entity);
-          })
-      );
+      const children = entity.children
+        //
+        .filter(Boolean)
+        .map((entity) => {
+          invariant(entity);
+          return traverse(entity);
+        });
+      if (children.length) {
+        obj.addChild(...children);
+      }
 
       return processBase(obj, entity);
     }
 
     if (entity.type === "sprite") {
-      const obj = new Sprite(assets[entity.texture]);
+      const texture = Assets.get(entity.texture);
+      invariant(texture, `Not found ${entity.texture} in assets cache.`);
+      const obj = new Sprite(texture);
 
       if (entity.visible === false) {
         obj.visible = false;
@@ -115,33 +145,80 @@ export function createStage(app: Application, assets: any) {
       const anchor = processVec2(entity.anchor, app.screen);
       obj.anchor.set(anchor.x, anchor.y);
 
+      if (entity.scale) {
+        const scale = processVec2(entity.scale, app.screen);
+        obj.scale.set(scale.x, scale.y);
+      }
+
       return processBase(obj, entity);
     }
 
     if (entity.type === "graphics") {
       const obj = new Graphics();
 
-      if (entity.visible === false) {
-        obj.visible = false;
-      }
-
-      obj.beginFill(entity.fill.alpha, entity.fill.alpha);
-
       const position = processVec2(entity.position, app.screen);
       const anchor = processVec2(entity.anchor, app.screen);
 
-      if (entity.draw.type === "rect") {
+      if (
+        entity.fill?.type === "texture" &&
+        (entity.draw?.type === "rect" || entity.draw?.type === "rounded-rect")
+      ) {
+        const { x: x0, y: y0 } = entity.fill.from;
+        const { x: x1, y: y1 } = entity.fill.to;
+        const colorStops = entity.fill.colors;
         const rect = processRect(entity.draw, app.screen);
-        const x = position.x - anchor.x * rect.width;
-        const y = position.y - anchor.y * rect.height;
-        obj.drawRect(x, y, rect.width, rect.height);
+        obj.beginTextureFill({
+          texture: GradientFactory.createLinearGradient(
+            app.renderer as Renderer,
+            RenderTexture.create({ width: rect.width, height: rect.height }),
+            { x0, y0, x1, y1, colorStops }
+          ),
+        });
+      } else if (
+        entity.fill &&
+        (!entity.fill.type || entity.fill.type === "fill")
+      ) {
+        obj.beginFill(entity.fill.alpha, entity.fill.alpha);
       }
 
-      if (entity.draw.type === "rounded-rect") {
+      if (entity.line) {
+        obj.lineStyle(entity.line);
+      }
+
+      if (entity.draw?.type === "rect") {
         const rect = processRect(entity.draw, app.screen);
+        obj.drawRect(0, 0, rect.width, rect.height);
+
         const x = position.x - anchor.x * rect.width;
         const y = position.y - anchor.y * rect.height;
-        obj.drawRoundedRect(x, y, rect.width, rect.height, entity.draw.radii);
+        obj.position.set(x, y);
+      }
+
+      if (entity.draw?.type === "rounded-rect") {
+        const rect = processRect(entity.draw, app.screen);
+        obj.drawRoundedRect(0, 0, rect.width, rect.height, entity.draw.radii);
+
+        const x = position.x - anchor.x * rect.width;
+        const y = position.y - anchor.y * rect.height;
+        obj.position.set(x, y);
+      }
+
+      if (entity.draw?.type === "arrow") {
+        drawArrow(
+          obj,
+          entity.draw.from,
+          entity.draw.to,
+          entity.draw.arrow,
+          entity.line
+        );
+
+        const x = position.x - anchor.x;
+        const y = position.y - anchor.y;
+        obj.position.set(x, y);
+      }
+
+      if (entity.onAdded) {
+        obj.addEventListener("added", () => entity.onAdded?.(obj, app));
       }
 
       return processBase(obj, entity);
@@ -161,6 +238,42 @@ export function createStage(app: Application, assets: any) {
 
     throw new Error(`not support entity type`);
   };
+}
+
+function drawArrowHead(
+  ref: Graphics,
+  from: Vec2<number>,
+  to: Vec2<number>,
+  arrow: Arrow
+) {
+  const center = to;
+  const line_angle = Math.atan2(to.y - from.y, to.x - from.x);
+
+  ref.moveTo(center.x, center.y);
+
+  for (const delta of [-1, 1]) {
+    const angle = delta * -arrow.angle;
+    const target = {
+      x: center.x - Math.cos(line_angle + angle) * arrow.radius,
+      y: center.y - Math.sin(line_angle + angle) * arrow.radius,
+    };
+    ref.lineTo(target.x, target.y);
+    ref.moveTo(center.x, center.y);
+  }
+
+  return ref;
+}
+
+function drawArrow(
+  ref: Graphics,
+  from: Vec2<number>,
+  to: Vec2<number>,
+  arrow: Arrow,
+  style?: ILineStyleOptions
+) {
+  ref.lineStyle(style).moveTo(from.x, from.y).lineTo(to.x, to.y);
+
+  return drawArrowHead(ref, from, to, arrow);
 }
 
 function processBase(obj: DisplayObject, entity: BaseEntity) {
